@@ -1,7 +1,7 @@
 # B31OT-Group-Assigment
 
 
-## 📘 Overview
+##  Overview
 
 The **Cooperative Thermal Alert Network (CTAN)** system is designed to detect abnormal temperature conditions and coordinate alerts between interconnected sensor nodes, representing by ESP32 MCU equipped with DHT11 sensors.
 
@@ -9,7 +9,7 @@ Each node monitors local temperature, communicates peer-to-peer using **ESP-NOW*
 
 ---
 
-## 🧩 System Architecture
+##  System Architecture
 
 ### Components
 - **ESP32 Sensor Nodes (x3+)**
@@ -34,18 +34,18 @@ Each node monitors local temperature, communicates peer-to-peer using **ESP-NOW*
 
 ---
 
-## ⚙️ Features
+##  Features
 
-- 🔥 **Anomaly Detection** – Automatic detection of temperature beyond configurable limits.  
-- 💬 **Peer-to-Peer Coordination** – ESP-NOW-based alert propagation between nodes.  
-- 💤 **Energy Efficiency** – Duty cycling and message encoding to reduce power consumption.  
-- 📡 **Gateway Integration** – MQTT-based data forwarding for cloud or local dashboard visualization.  
-- 💻 **Web Dashboard** – Real-time monitoring of temperatures, alert states, and network topology.  
-- 🧠 **Scalable & Extensible** – Easy node addition and flexible configuration options.
+-  **Anomaly Detection** – Automatic detection of temperature beyond configurable limits.  
+-  **Peer-to-Peer Coordination** – ESP-NOW-based alert propagation between nodes.  
+-  **Energy Efficiency** – Duty cycling and message encoding to reduce power consumption.  
+-  **Gateway Integration** – MQTT-based data forwarding for cloud or local dashboard visualization.  
+-  **Web Dashboard** – Real-time monitoring of temperatures, alert states, and network topology.  
+-  **Scalable & Extensible** – Easy node addition and flexible configuration options.
 
 ---
 
-## 🧠 System Requirements
+##  System Requirements
 
 ### Hardware
 - ESP32 microcontrollers (x4)

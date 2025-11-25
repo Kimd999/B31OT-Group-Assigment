@@ -1,3 +1,4 @@
+//Node 2 
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <PubSubClient.h>
@@ -5,12 +6,11 @@
 #include <Adafruit_NeoPixel.h>
 #include <ArduinoJson.h>
 
-// ------------ Node Settings ------------
+// -------- Node Settings --------
 #define NODE_ID 2
 const char* nodeName = "node2";
-const char* dataTopic = "greenhouse/node2/data";   // FIXED (unique for node2)
 
-// ------------ Pins ------------
+// -------- Pins --------
 #define DHTPIN     5
 #define DHTTYPE    DHT11
 #define LED_PIN    4
@@ -19,32 +19,40 @@ const char* dataTopic = "greenhouse/node2/data";   // FIXED (unique for node2)
 DHT dht(DHTPIN, DHTTYPE);
 Adafruit_NeoPixel led(NUMPIXELS, LED_PIN, NEO_GRB + NEO_KHZ800);
 
-// ------------ WiFi ------------
-const char* ssid     = "Test";        
-const char* password = "123456789";   
+// -------- WiFi --------
+const char* ssid     = "Test";
+const char* password = "123456789";
 
-// ------------ HiveMQ Cloud TLS ------------
+// -------- HiveMQ TLS --------
 const char* mqttServer = "2bcacdc6c78e4b73a575478294c5953b.s1.eu.hivemq.cloud";
 const int mqttPort     = 8883;
 const char* mqttUser   = "Ananthapadmanabhan_Manoj";
 const char* mqttPass   = "Padmanabham@23";
 
-// TLS client
+
+// -------- Topics --------
+const char* dataTopic  = "greenhouse/node2/data";
+const char* alertTopic = "greenhouse/alerts";
+
+// -------- TLS Client --------
 WiFiClientSecure secureClient;
 PubSubClient mqtt(secureClient);
 
-// ------------ Helpers ------------
+// -------- ALERT OVERRIDE --------
+bool alertActive = false;
+unsigned long alertUntil = 0;
+
+// -------- LED helper --------
 void setColor(uint8_t r, uint8_t g, uint8_t b) {
   led.setPixelColor(0, led.Color(r, g, b));
   led.show();
 }
 
+// -------- WiFi --------
 void connectWiFi() {
   if (WiFi.status() == WL_CONNECTED) return;
 
-  Serial.print("Node connecting to WiFi ");
-  Serial.println(ssid);
-
+  Serial.println("Connecting to WiFi...");
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
 
@@ -53,31 +61,55 @@ void connectWiFi() {
     delay(300);
   }
 
-  Serial.println("\nWiFi connected!");
-  Serial.print("IP: ");
-  Serial.println(WiFi.localIP());
+  Serial.println("\nConnected ✔");
 }
 
+// -------- MQTT --------
 void connectMQTT() {
   while (!mqtt.connected()) {
-    Serial.print("Connecting to HiveMQ Cloud... ");
+    Serial.print("Node2 connecting to HiveMQ... ");
 
-    String clientId = "Node2_";      // FIXED: Node2 ID
+    String clientId = "Node2_";
     clientId += WiFi.macAddress();
     clientId.replace(":", "");
 
     if (mqtt.connect(clientId.c_str(), mqttUser, mqttPass)) {
-      Serial.println("MQTT connected ✔");
-    } else {
-      Serial.print("MQTT failed, rc=");
+      Serial.println("✔ Connected");
+      mqtt.subscribe(alertTopic);
+    }
+    else {
+      Serial.print("FAILED, state=");
       Serial.println(mqtt.state());
       delay(2000);
     }
   }
 }
 
+// -------- MQTT CALLBACK --------
+void mqttCallback(char* topic, byte* payload, unsigned int len) {
+  String msg = "";
+  for(int i=0;i<len;i++) msg += (char)payload[i];
+
+  Serial.print("ALERT RECEIVED → ");
+  Serial.println(msg);
+
+  if (msg == "HOT") {
+    setColor(255,0,0);
+    alertActive = true;
+    alertUntil = millis() + 5000;
+  }
+  else if (msg == "COLD") {
+    setColor(0,0,255);
+    alertActive = true;
+    alertUntil = millis() + 5000;
+  }
+  else {
+    alertActive = false;
+  }
+}
+
 void setup() {
-  Serial.begin(115200);     // FIXED BAUD RATE
+  Serial.begin(115200);
   dht.begin();
   led.begin();
   led.clear();
@@ -85,12 +117,12 @@ void setup() {
 
   connectWiFi();
 
-  secureClient.setInsecure();   // No certificate needed
+  secureClient.setInsecure();
   mqtt.setServer(mqttServer, mqttPort);
+  mqtt.setCallback(mqttCallback);
 }
 
 void loop() {
-  if (WiFi.status() != WL_CONNECTED) connectWiFi();
   if (!mqtt.connected()) connectMQTT();
   mqtt.loop();
 
@@ -98,23 +130,40 @@ void loop() {
   float h = dht.readHumidity();
 
   if (isnan(t) || isnan(h)) {
-    Serial.println("⚠ Sensor error");
+    Serial.println("Sensor error");
     delay(2000);
     return;
   }
 
-  String tempLevel;
-  if (t < 18) {
-    tempLevel = "Cold";
-    setColor(0, 0, 255);
-  } 
-  else if (t > 30) {
-    tempLevel = "Hot";
+  Serial.print("Temperature: ");
+  Serial.println(t);
+  Serial.print("Humidity: ");
+  Serial.println(h);
+
+  if (alertActive && millis() < alertUntil) {
+    Serial.println("⚠ OVERRIDE ACTIVE - ignoring local temp");
+    delay(2000);
+    return;
+  }
+
+  alertActive = false;
+
+  String status;
+
+  if (t > 28) {
+    status = "Hot";
     setColor(255, 0, 0);
-  } 
+    mqtt.publish(alertTopic, "HOT");
+  }
+  else if (t < 18) {
+    status = "Cold";
+    setColor(0, 0, 255);
+    mqtt.publish(alertTopic, "COLD");
+  }
   else {
-    tempLevel = "Optimal";
+    status = "Optimal";
     setColor(0, 255, 0);
+    mqtt.publish(alertTopic, "NORMAL");
   }
 
   StaticJsonDocument<256> doc;
@@ -122,17 +171,11 @@ void loop() {
   doc["name"]        = nodeName;
   doc["temperature"] = t;
   doc["humidity"]    = h;
-  doc["status"]      = tempLevel;
+  doc["status"]      = status;
 
   char buffer[256];
   size_t len = serializeJson(doc, buffer);
-
-  if (mqtt.publish(dataTopic, buffer, len)) {
-    Serial.print("Published: ");
-    Serial.println(buffer);
-  } else {
-    Serial.println("⚠ MQTT publish failed");
-  }
+  mqtt.publish(dataTopic, buffer, len);
 
   delay(5000);
 }

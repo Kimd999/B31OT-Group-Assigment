@@ -1,15 +1,1 @@
-flowchart LR
-    subgraph LocalNetwork[Local Wireless Network]
-        N1[ESP32 WROOM\nNode1\nDHT11 + NeoPixel]
-        N2[ESP32 WROOM\nNode2\nDHT11 + NeoPixel]
-        GW[ESP32-C3\nGateway]
-        
-        N1 <--> N2:::espnow
-        N1 --> GW:::espnow
-        N2 --> GW:::espnow
-    end
 
-    GW -->|MQTT over TLS| HV[HiveMQ Cloud\nMQTT Broker]
-    HV -->|MQTT (greenhouse/#)| NR[Node-RED\nDashboard]
-
-    classDef espnow stroke:#ff7f0e,stroke-width:2;

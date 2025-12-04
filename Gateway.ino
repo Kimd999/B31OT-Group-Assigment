@@ -1,144 +1,188 @@
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <PubSubClient.h>
-#include <Adafruit_NeoPixel.h>
+#include <esp_now.h>
+#include <esp_wifi.h>
 #include <ArduinoJson.h>
 
-// -------- LED -----------
-#define LED_PIN 5
-#define NUMPIXELS 1
-Adafruit_NeoPixel led(NUMPIXELS, LED_PIN, NEO_GRB + NEO_KHZ800);
+// =============================================================
+// MAC ADDRESS DEFINITIONS given here are for code reference purpose only; not our real ones.
+// =============================================================
+uint8_t GATEWAY_MAC_ADDR[6] = {0x24, 0x6F, 0x28, 0xAA, 0xBB, 0x01};
+uint8_t NODE1_MAC_ADDR[6]   = {0x24, 0x6F, 0x28, 0xAA, 0xBB, 0x02};
+uint8_t NODE2_MAC_ADDR[6]   = {0x24, 0x6F, 0x28, 0xAA, 0xBB, 0x03};
 
-// -------- WiFi ----------
+// =============================================================
+// WiFi CREDENTIALS
+// =============================================================
 const char* ssid     = "Test";
 const char* password = "123456789";
 
-// -------- HiveMQ Cloud TLS ----------
+// =============================================================
+// HiveMQ CLOUD TLS SETTINGS
+// =============================================================
 const char* mqttServer = "2bcacdc6c78e4b73a575478294c5953b.s1.eu.hivemq.cloud";
-const int mqttPort     = 8883;
+const int   mqttPort   = 8883;
 const char* mqttUser   = "Ananthapadmanabhan_Manoj";
 const char* mqttPass   = "Padmanabham@23";
 
-// -------- Topics ----------
-const char* dataSubTopic = "greenhouse/+/data";   // node1, node2...
-const char* cmdTopic     = "greenhouse/gateway/cmd";
-const char* statusTopic  = "greenhouse/gateway/status";
-const char* alertTopic   = "greenhouse/alerts";   // GLOBAL alert channel
+#define ALERT_TOPIC   "greenhouse/alerts"
+#define STATUS_TOPIC  "greenhouse/gateway/status"
 
-// -------- TLS Client --------
-WiFiClientSecure secureClient;
-PubSubClient mqtt(secureClient);
+// =============================================================
+// MQTT OBJECTS
+// =============================================================
+WiFiClientSecure wifiClient;
+PubSubClient mqttClient(wifiClient);
 
-// -------- LED helper --------
-void setColor(uint8_t r, uint8_t g, uint8_t b) {
-  led.setPixelColor(0, led.Color(r, g, b));
-  led.show();
+// =============================================================
+// DATA STRUCT (MUST match Node1 & Node2)
+// =============================================================
+typedef struct {
+  char nodeID[10];
+  float temp;
+  float smoke;
+  int alert;
+  unsigned long ts;
+} SensorPacket;
+
+SensorPacket incoming;
+
+// =============================================================
+// PRINT GATEWAY MAC ADDRESS
+// =============================================================
+void printMAC() {
+    Serial.print("Gateway MAC: ");
+    Serial.println(WiFi.macAddress());
 }
 
-// -------- WiFi Connect --------
-void connectWiFi() {
-  if (WiFi.status() == WL_CONNECTED) return;
+// =============================================================
+// MQTT RECONNECT
+// =============================================================
+void mqttReconnect() {
+  while (!mqttClient.connected()) {
+      Serial.print("Connecting to MQTT... ");
 
-  Serial.println("Connecting to WiFi...");
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid, password);
+      String clientId = "ESP32-Gateway-";
+      clientId += WiFi.macAddress();
+      clientId.replace(":", "");
 
-  while (WiFi.status() != WL_CONNECTED) {
-    Serial.print(".");
-    delay(300);
+      if (mqttClient.connect(clientId.c_str(), mqttUser, mqttPass)) {
+          Serial.println("Connected to HiveMQ Cloud.");
+          mqttClient.publish(STATUS_TOPIC, "Gateway online");
+      } else {
+          Serial.print("Failed (rc=");
+          Serial.print(mqttClient.state());
+          Serial.println("). Retrying...");
+          delay(2000);
+      }
   }
-
-  Serial.println("\nWiFi connected.");
-  Serial.print("IP: ");
-  Serial.println(WiFi.localIP());
 }
 
-// -------- MQTT Connect --------
-void connectMQTT() {
-  while (!mqtt.connected()) {
-    Serial.print("Connecting to HiveMQ Cloud... ");
+// =============================================================
+// ESP-NOW CALLBACK FOR ESP32-C3
+// =============================================================
+void onDataRecv(const esp_now_recv_info_t *info, const uint8_t *data, int len) {
 
-    String clientId = "ESP32_Gateway_";
-    clientId += WiFi.macAddress();
-    clientId.replace(":", "");
-
-    if (mqtt.connect(clientId.c_str(), mqttUser, mqttPass)) {
-      Serial.println("CONNECTED ✔");
-
-      mqtt.subscribe(dataSubTopic);   // receive all node data
-      mqtt.subscribe(cmdTopic);       // LED control
-      mqtt.publish(statusTopic, "gateway-online");
-
-    } else {
-      Serial.print("FAILED → state ");
-      Serial.println(mqtt.state());
-      delay(3000);
+    if (len != sizeof(SensorPacket)) {
+        Serial.println("[ERR] Packet size mismatch");
+        return;
     }
-  }
-}
 
-// -------- MQTT CALLBACK --------
-void mqttCallback(char* topic, byte* payload, unsigned int length) {
-  String msg = "";
-  for (unsigned int i = 0; i < length; i++) msg += (char)payload[i];
+    memcpy(&incoming, data, sizeof(incoming));
 
-  Serial.println("---- MQTT ----");
-  Serial.print("Topic: "); Serial.println(topic);
-  Serial.print("Message: "); Serial.println(msg);
+    // Print sender MAC
+    char macStr[18];
+    sprintf(macStr, "%02X:%02X:%02X:%02X:%02X:%02X",
+            info->src_addr[0], info->src_addr[1], info->src_addr[2],
+            info->src_addr[3], info->src_addr[4], info->src_addr[5]);
 
-  // ----- 1. Gateway LED control -----
-  if (String(topic) == cmdTopic) {
+    Serial.printf("\n[ESP-NOW] From %s (%s)", incoming.nodeID, macStr);
+    Serial.printf(" | Temp=%.2f | Smoke=%.2f | Alert=%d | TS=%lu\n",
+                  incoming.temp, incoming.smoke, incoming.alert, incoming.ts);
+
+    // ------- Dynamic MQTT Topic -------
+    char topic[60];
+    sprintf(topic, "greenhouse/%s/data", incoming.nodeID);
+
     StaticJsonDocument<200> doc;
-    if (!deserializeJson(doc, msg)) {
-      int r = doc["red"] | 0;
-      int g = doc["green"] | 0;
-      int b = doc["blue"] | 0;
-      setColor(r, g, b);
-      Serial.println("Gateway LED updated ✔");
-    }
-  }
+    doc["node"]  = incoming.nodeID;
+    doc["temp"]  = incoming.temp;
+    doc["smoke"] = incoming.smoke;
+    doc["alert"] = incoming.alert;
+    doc["ts"]    = incoming.ts;
 
-  // ----- 2. GLOBAL ALERT SYNC FOR NODES -----
-  if (String(topic).startsWith("greenhouse/node")) {
-    StaticJsonDocument<256> doc;
-    if (deserializeJson(doc, msg) != DeserializationError::Ok) return;
+    char jsonOut[200];
+    serializeJson(doc, jsonOut);
+    mqttClient.publish(topic, jsonOut);
 
-    String status = doc["status"];
+    Serial.printf("[MQTT] Published to %s\n", topic);
 
-    if (status == "Hot") {
-      mqtt.publish(alertTopic, "HOT");
-      Serial.println("🔥 GLOBAL ALERT: HOT");
+    // ------- GLOBAL ALERT FORWARDING -------
+    if (incoming.alert == 1) {
+        StaticJsonDocument<150> alert;
+        alert["source"] = incoming.nodeID;
+        alert["status"] = "ALERT";
+        alert["ts"]     = incoming.ts;
+
+        char outAlert[150];
+        serializeJson(alert, outAlert);
+
+        mqttClient.publish(ALERT_TOPIC, outAlert);
+        Serial.println("[MQTT] GLOBAL ALERT forwarded!");
     }
-    else if (status == "Cold") {
-      mqtt.publish(alertTopic, "COLD");
-      Serial.println("❄ GLOBAL ALERT: COLD");
-    }
-    else {
-      mqtt.publish(alertTopic, "NORMAL");
-      Serial.println("🌿 GLOBAL ALERT: NORMAL");
-    }
-  }
 }
 
-// -------- SETUP --------
+// =============================================================
+// SETUP
+// =============================================================
 void setup() {
-  Serial.begin(115200);
+    Serial.begin(115200);
+    delay(300);
 
-  led.begin();
-  led.clear();
-  led.show();
-  setColor(0, 0, 80);  // startup glow
+    Serial.println("\n==== GATEWAY STARTING ====");
 
-  connectWiFi();
+    // Connect to WiFi
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(ssid, password);
 
-  secureClient.setInsecure();   // TLS without certificate
+    Serial.print("Connecting to WiFi");
+    while (WiFi.status() != WL_CONNECTED) {
+        Serial.print(".");
+        delay(400);
+    }
+    Serial.println("\nWiFi connected!");
 
-  mqtt.setServer(mqttServer, mqttPort);
-  mqtt.setCallback(mqttCallback);
+    printMAC();
+
+    // Sync ESP-NOW channel with router
+    int channel = WiFi.channel();
+    esp_wifi_set_channel(channel, WIFI_SECOND_CHAN_NONE);
+    Serial.printf("ESP-NOW synced to Channel %d\n", channel);
+
+    // Setup MQTT TLS
+    wifiClient.setInsecure();
+    mqttClient.setServer(mqttServer, mqttPort);
+    mqttClient.setKeepAlive(60);
+    mqttClient.setBufferSize(512);
+
+    // Init ESP-NOW
+    if (esp_now_init() != ESP_OK) {
+        Serial.println("ESP-NOW INIT FAILED! Restarting...");
+        ESP.restart();
+    }
+
+    esp_now_register_recv_cb(onDataRecv);
+
+    Serial.println("ESP-NOW ready.");
 }
 
-// -------- LOOP --------
+// =============================================================
+// LOOP
+// =============================================================
 void loop() {
-  if (!mqtt.connected()) connectMQTT();
-  mqtt.loop();
+    if (!mqttClient.connected()) {
+        mqttReconnect();
+    }
+    mqttClient.loop();
 }

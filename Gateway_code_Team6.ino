@@ -10,7 +10,7 @@
 // =============================================================
 uint8_t GATEWAY_MAC_ADDR[6] = {0x24, 0x6F, 0x28, 0xAA, 0xBB, 0x01};
 uint8_t NODE1_MAC_ADDR[6]   = {0x24, 0x6F, 0x28, 0xAA, 0xBB, 0x02};
-uint8_t NODE2_MAC_ADDR[6]   = {0x24, 0x6F, 0x28, 0xAA, 0xBB, 0x03};
+uint8_t NODE2_MAC_ADDR[6]   = {0x24, 0x6F, 0x28, 0xAA, 0xBB, 0x03};         
 
 // =============================================================
 // WiFi CREDENTIALS
@@ -43,7 +43,7 @@ typedef struct {
   float temp;
   float smoke;
   int alert;
-  unsigned long ts; 
+  unsigned long ts;    
 } SensorPacket;
 
 SensorPacket incoming;
@@ -65,9 +65,9 @@ void mqttReconnect() {
 
       String clientId = "ESP32-Gateway-";
       clientId += WiFi.macAddress();
-      clientId.replace(":", "");
+      clientId.replace(":", "");      
 
-      if (mqttClient.connect(clientId.c_str(), mqttUser, mqttPass)) {
+      if (mqttClient.connect(clientId.c_str(), mqttUser, mqttPass)) {   
           Serial.println("Connected to HiveMQ Cloud.");
           mqttClient.publish(STATUS_TOPIC, "Gateway online");
       } else {
@@ -106,7 +106,7 @@ void onDataRecv(const esp_now_recv_info_t *info, const uint8_t *data, int len) {
     sprintf(topic, "greenhouse/%s/data", incoming.nodeID);
 
     StaticJsonDocument<200> doc;
-    doc["node"]  = incoming.nodeID;
+    doc["node"]  = incoming.nodeID;                                                             
     doc["temp"]  = incoming.temp;
     doc["smoke"] = incoming.smoke;
     doc["alert"] = incoming.alert;

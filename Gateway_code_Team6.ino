@@ -16,14 +16,14 @@ uint8_t NODE2_MAC_ADDR[6]   = {0x24, 0x6F, 0x28, 0xAA, 0xBB, 0x03};
 // WiFi CREDENTIALS
 // =============================================================
 const char* ssid     = "Test";
-const char* password = "123456789";
+const char* password = "123456789"; 
 
 // =============================================================
 // HiveMQ CLOUD TLS SETTINGS
 // =============================================================
 const char* mqttServer = "2bcacdc6c78e4b73a575478294c5953b.s1.eu.hivemq.cloud";
 const int   mqttPort   = 8883;
-const char* mqttUser   = "Ananthapadmanabhan_Manoj";
+const char* mqttUser   = "Ananthapadmanabhan_Manoj"; 
 const char* mqttPass   = "Padmanabham@23";
 
 #define ALERT_TOPIC   "greenhouse/alerts"
@@ -43,7 +43,7 @@ typedef struct {
   float temp;
   float smoke;
   int alert;
-  unsigned long ts;
+  unsigned long ts; 
 } SensorPacket;
 
 SensorPacket incoming;
@@ -73,7 +73,7 @@ void mqttReconnect() {
       } else {
           Serial.print("Failed (rc=");
           Serial.print(mqttClient.state());
-          Serial.println("). Retrying...");
+          Serial.println("). Retrying..."); 
           delay(2000);
       }
   }

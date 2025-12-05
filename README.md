@@ -20,7 +20,7 @@ This project implements a **cooperative thermal alert network** with:
   - Implements Deep Sleep/Duty Cycling.
   - Triggers local LED alert.
   
-- **Node 2** – ESP32 WROOM  
+- **Node 2** – ESP32 WROOM   
   - DHT11 temperature sensor  
   - NeoPixel RGB LED  
   - Receives alerts from Node 1 via ESP-NOW and changes its LED state cooperatively.
@@ -46,7 +46,7 @@ We were unable to use 3 nodes+ gateway setup because one of our Esp32 kit was br
 
 ## 2. Features
 
-- Cooperative **alert propagation** between Node1 and Node2  
+- Cooperative **alert propagation** between Node1 and Node2     
 - Local **ESP-NOW** for low-latency, energy-efficient communication  
 - **MQTT over TLS** to HiveMQ Cloud (secure remote monitoring)  
 - **Node-RED dashboard** for visualization and supervision  
@@ -58,7 +58,7 @@ We were unable to use 3 nodes+ gateway setup because one of our Esp32 kit was br
 
 ## 3. Hardware
 
-- 2 × ESP32 WROOM Dev Kit (Node1, Node2)  
+- 2 × ESP32 WROOM Dev Kit (Node1, Node2)   
 - 1 × ESP32-C3 Dev Kit (Gateway)  
 - 2 × DHT11 temperature sensors  
 - 2 × NeoPixel RGB LEDs (1 pixel each)  
@@ -67,7 +67,7 @@ We were unable to use 3 nodes+ gateway setup because one of our Esp32 kit was br
 ### Pin Mapping (Nodes)
 
 - DHT11 data → `GPIO4`  
-- NeoPixel data → `GPIO5`  
+- NeoPixel data → `GPIO5`   
 
 > Power is provided via USB for demonstration, but the system is designed with battery operation in mind for energy-efficiency analysis.
 

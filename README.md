@@ -29,7 +29,7 @@ This project implements a **cooperative thermal alert network** with:
   - Subscribes to `greenhouse/#` MQTT topics  
   - Shows real-time node readings and alerts  
 
-The system was implemented as part of the **B31OT – IoT Group Assignment: Cooperative Thermal Alert Network (2025/26)**.
+The system was implemented as part of the **B31OT – IoT Group Assignment: Cooperative Thermal Alert Network**.
 
 ---
 

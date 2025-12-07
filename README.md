@@ -5,6 +5,7 @@ A multi-node, energy-efficient IoT system using **ESP32**, **ESP-NOW**, **MQTT o
 **Team Members:** Ananthapadmanabhan Manoj, Kwin-Isis Din Madiba, Spandana Meanlingi, and Jahnavi Makaraju
 
 The working demonstration of our system: IOT_Team6_Group_Project_Demonstration.mp4
+
 ---
 
 ## 1. System Overview and Architecture
